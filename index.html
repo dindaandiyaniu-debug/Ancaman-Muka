@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FaceThreat Analyzer</title>
+<style>
+  :root {
+    --bg: #f2f4f6; --surface: #ffffff; --ink: #1b2430; --muted: #5d6b7a; --line: #d9dfe5;
+    --accent: #0f6b6b; --accent-ink: #ffffff;
+    --pos: #b7791f; --neg: #b23a48; --self: #4b5fa8; --neutral: #6b7785;
+    --warn-bg: #fdecee; --ok-bg: #e6f2f2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12171d; --surface: #1b232c; --ink: #e8edf2; --muted: #9aa8b6; --line: #2d3945;
+      --accent: #4fb3b3; --accent-ink: #0d1a1a;
+      --pos: #e0a94a; --neg: #ee7a88; --self: #8fa2e6; --neutral: #9aa8b6;
+      --warn-bg: #3a1f25; --ok-bg: #173030;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 28px 18px 60px; }
+  h1, h2, h3 { font-family: Georgia, "Iowan Old Style", "Times New Roman", serif; line-height: 1.25; margin: 0; }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.3rem; margin-bottom: 10px; }
+  h3 { font-size: 1.05rem; margin-bottom: 6px; }
+  .lead { color: var(--muted); max-width: 62ch; margin: 8px 0 24px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  label { display: block; font-weight: 600; margin: 0 0 4px; }
+  input, select, textarea { width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+  textarea { min-height: 150px; resize: vertical; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  button { font: inherit; font-weight: 600; border-radius: 6px; padding: 10px 18px; cursor: pointer; border: 1px solid var(--accent); }
+  .primary { background: var(--accent); color: var(--accent-ink); }
+  .ghost { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .hint { color: var(--muted); font-size: .9rem; margin-top: 6px; }
+  .error { background: var(--warn-bg); border: 1px solid var(--neg); border-radius: 8px; padding: 14px 16px; white-space: pre-wrap; margin-bottom: 16px; }
+  .loading { display: none; align-items: center; gap: 12px; padding: 16px 0 4px; color: var(--muted); }
+  .spin { width: 20px; height: 20px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+  #hasil { display: none; }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 14px; }
+  .tag { display: inline-block; border: 1px solid currentColor; border-radius: 99px; padding: 1px 10px; font-size: .85rem; margin: 2px 4px 2px 0; }
+  .fta { border-left: 5px solid var(--neutral); }
+  .fta.pos { border-left-color: var(--pos); } .fta.pos h3 { color: var(--pos); }
+  .fta.neg { border-left-color: var(--neg); } .fta.neg h3 { color: var(--neg); }
+  .fta.self { border-left-color: var(--self); } .fta.self h3 { color: var(--self); }
+  .fta.off { opacity: .75; }
+  blockquote { margin: 8px 0; padding: 6px 12px; border-left: 3px solid var(--line); color: var(--ink); font-style: italic; }
+  .skala { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .bar { height: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; margin: 4px 0; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+  .total { font-family: Georgia, serif; font-size: 2.2rem; line-height: 1; }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  .reco { background: var(--ok-bg); }
+  p { margin: 6px 0; }
+  @media print { .no-print { display: none !important; } body { background: #fff; color: #000; } .card { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>FaceThreat Analyzer</h1>
+  <p class="lead">Analisis pragmatik ulasan pelanggan daring dengan teori ancaman muka (Face-Threatening Acts) Brown &amp; Levinson (1987). Tempelkan satu ulasan, lalu klik Analisis.</p>
+
+  <div class="card no-print">
+    <div class="row">
+      <div>
+        <label for="platform">Platform</label>
+        <select id="platform">
+          <option>Shopee</option><option>Tokopedia</option><option>Lazada</option><option>TikTok Shop</option>
+          <option>Bukalapak</option><option>Google Maps</option><option>Traveloka</option>
+          <option>Gojek/GoFood</option><option>Grab</option><option>Platform lain</option>
+        </select>
+      </div>
+      <div>
+        <label for="kategori">Kategori produk/jasa</label>
+        <input id="kategori" type="text" placeholder="Contoh: fashion, makanan, elektronik">
+      </div>
+    </div>
+    <label for="ulasan">Teks ulasan</label>
+    <textarea id="ulasan" maxlength="4000" placeholder="Tempel ulasan pelanggan di sini..."></textarea>
+    <div class="hint"><span id="hitung">0</span> / 4000 karakter. Proses analisis memakan waktu 20–90 detik.</div>
+    <div class="actions">
+      <button id="btnAnalisis" class="primary" type="button">Analisis ulasan</button>
+      <button id="btnContoh" class="ghost" type="button">Isi contoh</button>
+      <button id="btnBersih" class="ghost" type="button">Kosongkan</button>
+    </div>
+    <div id="loading" class="loading" role="status"><div class="spin"></div><span id="loadingTeks">Menganalisis ulasan...</span></div>
+  </div>
+
+  <div id="galat"></div>
+  <div id="hasil"></div>
+</div>
+
+<script>
+  var $ = function (id) { return document.getElementById(id); };
+  var CONTOH = "Penjualnya lambat banget, udah seminggu barang belum nyampe. Pas datang ternyata rusak. Kecewa berat, nyesel beli di sini. Pokoknya kembalikan uang saya sekarang atau saya laporkan ke Shopee dan kasih tau semua orang jangan beli di toko ini!";
+  var timerPesan = null;
+
+  // ---------- pembantu DOM (aman dari injeksi HTML) ----------
+  function h(tag, kelas, teks) {
+    var e = document.createElement(tag);
+    if (kelas) e.className = kelas;
+    if (teks !== undefined && teks !== null) e.textContent = teks;
+    return e;
+  }
+  function tambah(induk) {
+    for (var i = 1; i < arguments.length; i++) if (arguments[i]) induk.appendChild(arguments[i]);
+    return induk;
+  }
+  function tags(arr) {
+    var w = h("div");
+    (arr || []).forEach(function (t) { w.appendChild(h("span", "tag", t)); });
+    return w;
+  }
+  function kutipan(arr) {
+    var w = h("div");
+    (arr || []).forEach(function (t) { w.appendChild(h("blockquote", null, t)); });
+    return w;
+  }
+
+  // ---------- tombol ----------
+  $("ulasan").addEventListener("input", function () { $("hitung").textContent = this.value.length; });
+  $("btnContoh").onclick = function () { $("ulasan").value = CONTOH; $("kategori").value = "Fashion"; $("hitung").textContent = CONTOH.length; };
+  $("btnBersih").onclick = function () { $("ulasan").value = ""; $("kategori").value = ""; $("hitung").textContent = 0; $("hasil").style.display = "none"; $("galat").innerHTML = ""; };
+
+  $("btnAnalisis").onclick = function () {
+    var ulasan = $("ulasan").value.trim();
+    $("galat").innerHTML = "";
+    if (!ulasan) { tampilGalat("Teks ulasan masih kosong. Tempel ulasan dulu, atau klik \"Isi contoh\"."); return; }
+    mulaiLoading(true);
+    google.script.run
+      .withSuccessHandler(function (res) {
+        mulaiLoading(false);
+        if (!res || !res.success) { tampilGalat((res && res.error) || "Terjadi kesalahan yang tidak diketahui."); return; }
+        tampilHasil(res);
+      })
+      .withFailureHandler(function (err) {
+        mulaiLoading(false);
+        tampilGalat("Gagal menghubungi server: " + (err && err.message ? err.message : err));
+      })
+      .analyzeReview({ platform: $("platform").value, kategori: $("kategori").value.trim(), ulasan: ulasan });
+  };
+
+  function mulaiLoading(aktif) {
+    $("btnAnalisis").disabled = aktif;
+    $("loading").style.display = aktif ? "flex" : "none";
+    clearInterval(timerPesan);
+    if (aktif) {
+      var pesan = ["Menganalisis ulasan...", "Mengidentifikasi tindak tutur...", "Menghitung bobot ancaman muka...", "Hampir selesai, mohon tunggu..."];
+      var i = 0; $("loadingTeks").textContent = pesan[0];
+      timerPesan = setInterval(function () { i = Math.min(i + 1, pesan.length - 1); $("loadingTeks").textContent = pesan[i]; }, 12000);
+    }
+  }
+  function tampilGalat(teks) {
+    $("galat").innerHTML = "";
+    $("galat").appendChild(h("div", "error", teks));
+  }
+
+  // ---------- tampilan hasil ----------
+  function bagianFta(kelas, judul, data) {
+    var c = h("div", "card fta " + kelas + (data.teridentifikasi ? "" : " off"));
+    tambah(c, h("h3", null, judul + (data.teridentifikasi ? "" : " (tidak teridentifikasi)")));
+    if (data.subkategori.length) c.appendChild(tags(data.subkategori));
+    if (data.bukti_tuturan.length) c.appendChild(kutipan(data.bukti_tuturan));
+    if (data.penjelasan) c.appendChild(h("p", null, data.penjelasan));
+    return c;
+  }
+  function barisSkala(nama, o) {
+    var w = h("div");
+    tambah(w, h("strong", null, nama + ": " + o.skor + " / 5 (" + o.level + ")"));
+    var bar = h("div", "bar"); var isi = h("i"); isi.style.width = (o.skor / 5 * 100) + "%"; bar.appendChild(isi);
+    tambah(w, bar, h("div", null, o.penjelasan));
+    return w;
+  }
+
+  function tampilHasil(res) {
+    var d = res.data, m = res.meta, root = $("hasil");
+    root.innerHTML = "";
+
+    tambah(root, h("div", "meta", m.platform + " | " + m.kategori + " | " + m.waktu + " WIB | model: " + m.model));
+
+    var c1 = h("div", "card");
+    tambah(c1, h("h2", null, "Ringkasan"), h("p", null, d.ringkasan_analisis));
+    root.appendChild(c1);
+
+    var s = d.strategi_kesantunan, c2 = h("div", "card");
+    tambah(c2, h("h2", null, "Strategi kesantunan"), tags([s.kategori || "-"]));
+    if (s.definisi) c2.appendChild(h("p", null, s.definisi));
+    if (s.penjelasan) c2.appendChild(h("p", null, s.penjelasan));
+    if (s.indikator_linguistik.length) tambah(c2, h("strong", null, "Indikator linguistik"), tags(s.indikator_linguistik));
+    root.appendChild(c2);
+
+    var f = d.kategorisasi_fta;
+    tambah(root, h("h2", null, "Ancaman muka (FTA)"),
+      bagianFta("pos", "Muka positif penjual", f.muka_positif_mitratutur),
+      bagianFta("neg", "Muka negatif penjual", f.muka_negatif_mitratutur),
+      bagianFta("self", "Muka penutur (pembeli)", f.muka_penutur_sendiri));
+
+    var b = d.kalkulasi_bobot_ancaman, c3 = h("div", "card");
+    tambah(c3, h("h2", null, "Bobot ancaman muka (Wx = D + P + R)"));
+    var tot = h("div"); tambah(tot, h("span", "total", b.total_bobot_Wx.skor_total + " / 15"), h("strong", null, "  " + b.total_bobot_Wx.level));
+    c3.appendChild(tot);
+    if (b.total_bobot_Wx.interpretasi) c3.appendChild(h("p", null, b.total_bobot_Wx.interpretasi));
+    var sk = h("div", "skala");
+    tambah(sk, barisSkala("Jarak sosial (D)", b.jarak_sosial_D), barisSkala("Kekuasaan relatif (P)", b.kekuasaan_relatif_P), barisSkala("Derajat pembebanan (R)", b.tingkat_imposisi_R));
+    c3.appendChild(sk);
+    root.appendChild(c3);
+
+    var c4 = h("div", "card");
+    c4.appendChild(h("h2", null, "Analisis per unit tuturan"));
+    var tabel = h("table"), kepala = h("tr");
+    ["Tuturan", "Tindak tutur", "Target FTA", "Analisis"].forEach(function (t) { kepala.appendChild(h("th", null, t)); });
+    tabel.appendChild(kepala);
+    d.analisis_unit_tuturan.forEach(function (u) {
+      var tr = h("tr");
+      [u.kalimat, u.tindak_tutur, u.target_fta, u.analisis].forEach(function (t) { tr.appendChild(h("td", null, t || "-")); });
+      tabel.appendChild(tr);
+    });
+    var sc = h("div", "scroll"); sc.appendChild(tabel); c4.appendChild(sc);
+    root.appendChild(c4);
+
+    var c5 = h("div", "card reco");
+    tambah(c5, h("h2", null, "Rekomendasi respons penjual"), h("p", null, d.rekomendasi_respon_pragmatik));
+    root.appendChild(c5);
+
+    var aksi = h("div", "actions no-print");
+    var cetak = h("button", "ghost", "Cetak / simpan PDF"); cetak.type = "button"; cetak.onclick = function () { window.print(); };
+    var salin = h("button", "ghost", "Salin hasil (JSON)"); salin.type = "button";
+    salin.onclick = function () {
+      var teks = JSON.stringify(res, null, 2), ta = document.createElement("textarea");
+      ta.value = teks; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); salin.textContent = "Tersalin"; } catch (e) { salin.textContent = "Gagal menyalin"; }
+      document.body.removeChild(ta);
+    };
+    tambah(aksi, cetak, salin);
+    root.appendChild(aksi);
+
+    root.style.display = "block";
+    root.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+</script>
+</body>
+</html>
